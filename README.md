@@ -1,6 +1,6 @@
-﻿# My Custom Copilot Agents
+# My Custom Copilot Agents
 
-A collection of custom agents for GitHub Copilot.
+A collection of custom agents that work with both **GitHub Copilot** and **Claude Code**, plus a 6-stage feature pipeline that ties them together. The agents and pipeline are universal — no hardcoded paths, no framework assumptions — so they move cleanly from one user story (or project) to the next.
 
 ## What's Here
 
@@ -12,12 +12,81 @@ A collection of custom agents for GitHub Copilot.
 | `review-agent` | Reviews code for bugs, edge cases, clarity, and maintainability |
 | `test-agent` | Writes unit tests and test suites with strong coverage and readable descriptions |
 
-## Quick Start
+## Installing in a Project
 
-1. Copy any `.agent.md` file into your project's `.github/agents/` folder.
-2. Open GitHub Copilot Chat in VS Code.
-3. Select the agent from the dropdown menu.
-4. Follow the workflow below to use all agents together for a new feature.
+The agents and pipeline are designed to drop in unchanged. The only optional per-project file is `.claude/pipeline.json` for non-standard build/test commands.
+
+### What goes where
+
+| File / folder in this repo | Destination in target project | Tool |
+|---|---|---|
+| `.claude/agents/*.md` | `<project>/.claude/agents/` (project) **or** `~/.claude/agents/` (user) | Claude Code |
+| `.claude/commands/*.md` | `<project>/.claude/commands/` (project) **or** `~/.claude/commands/` (user) | Claude Code |
+| `agents/*.agent.md` | `<project>/.github/agents/` | GitHub Copilot |
+| `PIPELINE.md` | `<project>/PIPELINE.md` | both |
+| `.github/pull_request_template.md` | `<project>/.github/pull_request_template.md` | GitHub |
+
+**Project vs user level:** Putting the Claude Code files under `~/.claude/` makes the agents and `/pipe-*` slash commands available in **every** project automatically — the right choice if you bounce between user stories often. Per-project install is the right choice when a repo wants its own pinned copy. Copilot has no user-level equivalent; copy per repo.
+
+### Copy commands
+
+Clone this repo somewhere, set `AGENTS_REPO` to that path, then run from inside the target project's root.
+
+**Project-level — PowerShell (Windows):**
+```powershell
+$AGENTS_REPO = "C:\path\to\my-custom-agents"
+robocopy "$AGENTS_REPO\.claude\agents"   ".\.claude\agents"   /E
+robocopy "$AGENTS_REPO\.claude\commands" ".\.claude\commands" /E
+robocopy "$AGENTS_REPO\agents"           ".\.github\agents"   *.agent.md
+Copy-Item "$AGENTS_REPO\PIPELINE.md" ".\"
+New-Item -ItemType Directory -Force -Path ".\.github" | Out-Null
+Copy-Item "$AGENTS_REPO\.github\pull_request_template.md" ".\.github\"
+```
+
+**Project-level — bash (macOS/Linux):**
+```bash
+AGENTS_REPO="$HOME/path/to/my-custom-agents"
+mkdir -p .claude/agents .claude/commands .github/agents
+cp -r "$AGENTS_REPO"/.claude/agents/.   .claude/agents/
+cp -r "$AGENTS_REPO"/.claude/commands/. .claude/commands/
+cp    "$AGENTS_REPO"/agents/*.agent.md  .github/agents/
+cp    "$AGENTS_REPO"/PIPELINE.md        ./
+cp    "$AGENTS_REPO"/.github/pull_request_template.md .github/
+```
+
+**User-level (Claude Code only — applies to every project):**
+```powershell
+# PowerShell
+robocopy "$AGENTS_REPO\.claude\agents"   "$HOME\.claude\agents"   /E
+robocopy "$AGENTS_REPO\.claude\commands" "$HOME\.claude\commands" /E
+```
+```bash
+# bash
+mkdir -p ~/.claude/agents ~/.claude/commands
+cp -r "$AGENTS_REPO"/.claude/agents/.   ~/.claude/agents/
+cp -r "$AGENTS_REPO"/.claude/commands/. ~/.claude/commands/
+```
+
+`PIPELINE.md` and the PR template still go per-project regardless of scope.
+
+### Configure (only if needed)
+
+If the target project uses non-standard build/test commands (e.g., `pnpm`, `poetry run`, `make`), create `.claude/pipeline.json` in that project. See [.claude/pipeline.example.json](.claude/pipeline.example.json) for the schema. The slash commands auto-detect npm/pip/cargo/go projects without any config.
+
+### Verify
+
+- **Claude Code:** open the target project, run `/pipe` (the 6-stage matrix should print) and `/agents` (the five subagents should be listed).
+- **Copilot:** open Copilot Chat — the five agents should appear in the dropdown.
+
+### Caveats
+
+- **Copying overwrites.** If the target project already has `.github/pull_request_template.md` or files with the same names in `.claude/agents/` or `.claude/commands/`, back them up before copying.
+- **Bash permission prompts.** First time `/pipe-build`, `/pipe-test`, or `/pipe-fix` runs, Claude Code prompts to approve the build/test command. Pre-approve via `/permissions` if you want to skip future prompts (e.g., `Bash(npm test:*)`).
+- **No project-specific edits to the agents themselves** — they reference no paths, frameworks, or codebases. If you find yourself editing an agent for a specific project, that's a smell; add a `pipeline.json` instead, or open an issue here.
+
+## The Pipeline
+
+The 6-step workflow below is formalized in [PIPELINE.md](PIPELINE.md), with explicit gates between stages and prompt templates for both tools. In Claude Code, run `/pipe` to see the stage matrix, then `/pipe-plan <feature>` to start — each `/pipe-*` slash command (defined in `.claude/commands/`) wraps the right subagent and prints the gate at the end. In Copilot, follow the prompt templates in [PIPELINE.md](PIPELINE.md).
 
 ## The Agent Workflow
 
